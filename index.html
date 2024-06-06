@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Dreammap</title>
+    <style>
+        /* 全体のスタイル設定 */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 10px;
+            background-color: #7D6C62;
+            color: black;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* コンテンツを中央に配置するためのコンテナ */
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            flex: 1;
+        }
+
+        /* Dreammap領域のスタイル設定 */
+        .dreammap {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 1200px;
+            position: relative;
+            height: 1000px;
+            padding: 10px;
+            box-sizing: border-box;
+            background-color: #efe4e9;
+        }
+
+        /* 背景に「Dreammap」という文字を半透明で表示 */
+        .dreammap::before {
+            content: 'Dreammap';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5em;
+            color: rgba(128, 128, 128, 0.3);
+            pointer-events: none;
+        }
+
+        /* 各写真アイテムのスタイル設定 */
+        .dreammap .dream-item {
+            position: absolute;
+            text-align: center;
+            margin: 10px;
+            cursor: move;
+            background: white;
+            border: 5px solid white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+            overflow: hidden;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        /* 写真のスタイル設定 */
+        .dreammap .dream-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-bottom: 5px solid white;
+        }
+
+        /* 名前と削除ボタンを含むコンテナのスタイル */
+        .dreammap .name-container {
+            width: 100%;
+            background: white;
+            padding: 10px 0;
+            box-sizing: border-box;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 名前テキストのスタイル */
+        .dreammap .name {
+            display: block;
+            color: #5D535E;
+            font-size: 0.8em;
+            line-height: 1.2em;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 削除ボタンのスタイル */
+        .dreammap .delete-button {
+            background-color: rgba(93, 83, 94, 0.5);
+            color: #EFE8E4;
+            border: none;
+            border-radius: 5px;
+            padding: 2px;
+            margin-top: 2px;
+            cursor: pointer;
+            font-size: 0.5em;
+        }
+
+        /* チャット入力画面のスタイル */
+        form {
+            background-color: whitesmoke;
+            padding: 5px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(13, 2, 2, 0.1);
+            width: 200px;
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        fieldset {
+            border: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        legend {
+            font-size: 1em;
+            margin-bottom: 5px;
+            color: gray;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 5px;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .input-row label {
+            margin-right: 5px;
+            font-size: 0.8em;
+            color: gray;
+        }
+
+        .input-row input {
+            flex: 1;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Dreammapを表示するエリア -->
+        <div class="dreammap" id="dreammap"></div>
+    </div>
+
+    <!-- チャット入力画面 -->
+    <form>
+        <fieldset>
+            <legend>チャット入力画面</legend>
+            <div class="input-row">
+                <label for="name">name:</label>
+                <input type="text" id="name" style="width: 100%;">
+            </div>
+            <div class="input-row">
+                <label for="image">image:</label>
+                <input type="file" id="image" style="width: 100%;">
+            </div>
+            <div>
+                <button type="button" id="send" style="width: 100%;">send</button>
+            </div>
+        </fieldset>
+    </form>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.2.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.2.0/firebase-analytics.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            serverTimestamp,
+            query,
+            orderBy,
+            onSnapshot,
+            deleteDoc,
+            doc
+        } from "https://www.gstatic.com/firebasejs/10.2.0/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.2.0/firebase-storage.js";
+
+        // Firebaseアプリの初期化
+        const firebaseConfig = {
+            apiKey: ,
+            authDomain: "dream-map-n7.firebaseapp.com",
+            projectId: "dream-map-n7",
+            storageBucket: "dream-map-n7.appspot.com",
+            messagingSenderId: "134798577172",
+            appId: "1:134798577172:web:c59b5c196b0d6c6b48e101"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        // 「send」ボタンがクリックされたときの処理
+        $("#send").on("click", async function () {
+            const file = document.getElementById("image").files[0];
+            let imageUrl = "";
+
+            if (file) {
+                const storageRef = ref(storage, 'images/' + file.name);
+                await uploadBytes(storageRef, file);
+                imageUrl = await getDownloadURL(storageRef);
+            }
+            const postData = {
+                name: $("#name").val(),
+                time: serverTimestamp(),
+                imageUrl: imageUrl
+            };
+
+            // データベースにチャットメッセージを追加
+            addDoc(collection(db, "chat"), postData);
+            $("#name").val("");
+            $("#image").val("");
+        });
+
+        // チャットメッセージの取得と表示
+        const q = query(collection(db, "chat"), orderBy("time", "desc"));
+        onSnapshot(q, (querySnapshot) => {
+            const documents = [];
+            querySnapshot.docs.forEach(function (doc) {
+                const document = {
+                    id: doc.id,
+                    data: doc.data()
+                };
+                documents.push(document);
+            });
+
+            const dreammapElements = [];
+            const positions = [];
+            const container = document.getElementById("dreammap");
+
+            documents.forEach(function (document) {
+                if (document.data.imageUrl) {
+                    const size = getRandomSize(150, 250);
+                    const frameHeight = size + 60;
+                    const position = getRandomPosition(positions, container.offsetWidth, container.offsetHeight, size, frameHeight);
+                    positions.push(position);
+
+                    dreammapElements.push(`
+                        <div class="dream-item" style="left: ${position.x}; top: ${position.y}; width: ${size}px; height: ${frameHeight}px;" data-id="${document.id}">
+                            <img src="${document.data.imageUrl}" alt="dream image" style="width: ${size}px; height: ${size}px;">
+                            <div class="name-container">
+                                <p class="name">${document.data.name}</p>
+                                <button class="delete-button" data-id="${document.id}">Delete</button>
+                            </div>
+                        </div>
+                    `);
+                }
+            });
+
+            $("#dreammap").html(dreammapElements.join(''));
+            makeItemsDraggable();
+        });
+
+        // 「Delete」ボタンがクリックされたときの処理
+        $(document).on("click", ".delete-button", async function () {
+            const docId = $(this).data("id");
+            await deleteDoc(doc(db, "chat", docId));
+        });
+
+        // アイテムをドラッグ可能にする関数
+        function makeItemsDraggable() {
+            const items = document.querySelectorAll('.dream-item');
+            items.forEach(item => {
+                item.addEventListener('mousedown', mouseDown);
+            });
+        }
+
+        function mouseDown(e) {
+            e.preventDefault();
+            const item = e.currentTarget;
+            let shiftX = e.clientX - item.getBoundingClientRect().left;
+            let shiftY = e.clientY - item.getBoundingClientRect().top;
+
+            function moveAt(pageX, pageY) {
+                item.style.left = pageX - shiftX + 'px';
+                item.style.top = pageY - shiftY + 'px';
+            }
+
+            function onMouseMove(event) {
+                moveAt(event.pageX, event.pageY);
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+
+            document.addEventListener('mouseup', function onMouseUp() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            });
+        }
+
+        // Dream itemsのサイズをランダムに取得する関数
+        function getRandomSize(min, max) {
+            const size = Math.floor(Math.random() * (max - min + 1)) + min;
+            return size;
+        }
+
+        // Dream itemsの位置をランダムに取得する関数
+        function getRandomPosition(existingPositions, maxWidth, maxHeight, itemWidth, itemHeight) {
+            let position;
+            let collision;
+            const maxAttempts = 100;
+            let attempts = 0;
+
+            do {
+                position = {
+                    x: Math.floor(Math.random() * (maxWidth - itemWidth)) + 'px',
+                    y: Math.floor(Math.random() * (maxHeight - itemHeight)) + 'px'
+                };
+                collision = existingPositions.some(pos => {
+                    return Math.abs(parseInt(pos.x) - parseInt(position.x)) < itemWidth &&
+                        Math.abs(parseInt(pos.y) - parseInt(position.y)) < itemHeight;
+                });
+                attempts++;
+            } while (collision && attempts < maxAttempts);
+
+            return position;
+        }
+    </script>
+</body>
+
+</html>
